@@ -15,6 +15,9 @@ try {
   exit($e);
 }
 
+$vk = new VK\Client\VKApiClient();
+
+
 
 if (file_exists('token.dat')) {
   
@@ -24,10 +27,26 @@ if (file_exists('token.dat')) {
 
 } else {exit('empty token file');}
 
-define(ID, 191399337);
-define(_ID, -191399337);
-define(CAT, 101);
-define(LIMIT, 3);
+define(ID, 191399337);   // ID группы
+define(_ID, -191399337); // ID группы минус
+define(CAT, 101); // детские коляски по ВК
+define(LIMIT, 5); // лимит на один поток
+define(PROC, 'proc');
+
+
+
+
+function setPID($pid, $offset, $limit) {
+
+  file_put_contents(PROC, json_encode(array('pid', 'offset', 'limit', 'activity')));
+
+}
+
+function setLog($message) {
+  $log_name = "logs/" . date("d_m_y") . "-log.txt";
+  $log_time = date("H:i:s");
+  file_put_contents($log_name, "[" . $log_time . "] \t" . $message . "\n", FILE_APPEND);
+}
 
 function deleteAlbum($id) {
   $vk->market()->deleteAlbum($access_token, array(
@@ -72,55 +91,65 @@ function is_exists($search, $name) {
 
 
 
+
+/** 
+ * Определение точки входа
+ */
+if (file_exists(PROC)) {
+  
+} else {
+  setPID();
+  exec("/opt/php/7.1/bin/php " . __FILE__ . " " .$offset. " > /dev/null &");
+  exit();
+}
+
+
+
+
 /* Основной код */
 
-$vk = new VK\Client\VKApiClient();
 
+if ((is_null($argc)) || ($argc == 1)) {
+  if ($_GET['offset']) {
+    $offset = filter_var($_GET['offset'], FILTER_SANITIZE_STRING);
+    exec("/opt/php/7.1/bin/php " . __FILE__ . " " .$offset. " > /dev/null &");
+    exit();
+  } else {
+    /**
+     * Проверка и альбомов
+     * удаление вручную deleteAlbum()
+     */
 
-/**
- * Проверка и альбомов
- * удаление вручную deleteAlbum()
- */
-
-$albums = $vk->market()->getAlbums($access_token, array(
-  'owner_id' => _ID,
-  'count'    => 100,
-));
-$vkAlbums = array();
-foreach ($albums['items'] as $album) {
-  $vkTemp[] = trim($album['title']);
-  $vkAlbums[$album['id']] = $album['title'];
-}
-// print_r($vkAlbums);
-
-/**
- * Добавление новых альбов
- */
-foreach ($xi->getCatalog() as $yamlAlbum) {
-  if (!in_array($yamlAlbum, $vkAlbums)) {
-    $id = $vk->market()->addAlbum($access_token, array(
+    $albums = $vk->market()->getAlbums($access_token, array(
       'owner_id' => _ID,
-      'title'    => $yamlAlbum,
+      'count'    => 100,
     ));
-    usleep(500000);
+    $vkAlbums = array();
+    foreach ($albums['items'] as $album) {
+      $vkTemp[] = trim($album['title']);
+      $vkAlbums[$album['id']] = $album['title'];
+    }
+
+    /**
+     * Добавление новых альбов
+     */
+    foreach ($xi->getCatalog() as $yamlAlbum) {
+      if (!in_array($yamlAlbum, $vkAlbums)) {
+        $id = $vk->market()->addAlbum($access_token, array(
+          'owner_id' => _ID,
+          'title'    => $yamlAlbum,
+        ));
+        usleep(500000);
+      }
+    }
+
+    
+
+    exec("/opt/php/7.1/bin/php " . __FILE__ . " 0 > /dev/null &");
+    echo $argc;
+    exit();
   }
-}
-// 
-// 
-//  Такаяже хрень что и с search
-// $offset = 0;
-// $vkAll = array();
-// do {
-//   $search = $vk->market()->search($access_token, array(
-//     'owner_id'      => _ID,
-//     'count'         => 200,
-//     'offset'        => $offset,
-//   ));
-//   foreach ($search['items'] as $item) {
-//     $vkAll[] = $item['title'];
-//   }
-//   usleep(500000);
-// } while ( empty($search['items']) );
+} 
 
 
 
@@ -138,8 +167,28 @@ $albums = $vk->market()->getAlbums($access_token, array(
 foreach ($albums['items'] as $album) {
   $vkAlbums[$album['id']] = $album['title'];
 }
-// TEST:
-// $yamlGoods = array($yamlGoods[1]);
+
+
+
+
+if ($argv[1] > 0) {
+  $offset = $argv[1];
+} else {
+  $offset = 0;
+}
+
+
+$limit = $offset + LIMIT;
+// TODO: заменить временное значение на count
+if ($limit > count($yamlGoods)) {
+  $limit = count($yamlGoods);
+}
+
+
+
+
+
+
 
 ////////////////
 // MAIN_LOOP: //
@@ -147,82 +196,60 @@ foreach ($albums['items'] as $album) {
 ///
 ///
 
-// print_r(count($yamlGoods));
-// print_r($argv);
-
-if ((is_null($argc)) || ($argc == 1)) {
-  exec("/opt/php/7.1/bin/php " . __FILE__ . " 0 > /dev/null &");
-  echo $argc;
-  exit();
-} 
-
-if ($argv[1] > 0) {
-  $offset = $argv[1];
-} else {
-  $offset = 0;
-}
-$limit = $offset + LIMIT;
-// TODO: заменить временное значение на count
-if ($limit > count($yamlGoods)) {
-  $limit = count($yamlGoods);
-}
-
-set_time_limit(30);
+set_time_limit(300);
 for ($offset; $offset < $limit; $offset++) { 
   $good = $yamlGoods[$offset];
-  file_put_contents('ttt.txt', $good['name'] . "\n", FILE_APPEND);
-}
-  file_put_contents('ttt.txt', $offset . "\n", FILE_APPEND);
-  sleep(2);
-  exec("/opt/php/7.1/bin/php " . __FILE__ . " $offset > /dev/null &");
-
-
-
-// echo 'test';
-// for ($i=0; $i < 10; $i++) { 
-//   sleep(1);
-//   file_put_contents('test.txt', $i);
-// }
-
-exit();
-foreach ($yamlGoods as $good) {
-  set_time_limit(300);
+  
+  // поиск существующих товаров (лаг минуты 3)
+  try {
     $search = $vk->market()->search($access_token, array(
-    'owner_id'      => _ID,
-    'q'             => trim($good['name']),
-  ));
+      'owner_id'      => _ID,
+      'q'             => trim($good['name']),
+    ));
+  } catch (Exception $e) {
+    setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
+  }
     usleep(250000);
 
 
 
   $gid = is_exists($search, $good['name']);
   if ($gid == false) {
+  setLog($good['name'] . " *NEW");
     /* upload main image */
-    var_dump($gid);
-    
-      $photo = $vk->photos()->getMarketUploadServer($access_token, array(
-          'group_id'   => ID,
-          'main_photo' => 1
-        ));
+    // var_dump($gid);
 
-      $uploads = uploadFile($photo['upload_url'], trim($good['picture_path']));
-      $uploads['group_id'] = ID;
-      $photo = $vk->photos()->saveMarketPhoto($access_token, $uploads);
-    usleep(250000);
+      try {
+        $photo = $vk->photos()->getMarketUploadServer($access_token, array(
+            'group_id'   => ID,
+            'main_photo' => 1
+          ));
 
+        $uploads = uploadFile($photo['upload_url'], trim($good['picture_path']));
+        $uploads['group_id'] = ID;
+        $photo = $vk->photos()->saveMarketPhoto($access_token, $uploads);
+      } catch (Exception $e) {
+        setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
+      }
 
-      $gid = $vk->market()->add($access_token, array( 
-            'owner_id'      => _ID,
-            'name'          => $good['name'],
-            'description'   => filter_var ($good['description'], FILTER_SANITIZE_STRING),
-            'category_id'   => CAT,
-            'price'         => $good['price'],
-            'deleted'       => $good['deleted'],
-            'main_photo_id' => $photo[0]['id'],
-            'url'           => $good['url'],
+      usleep(250000);
+
+      try {
+        $gid = $vk->market()->add($access_token, array( 
+              'owner_id'      => _ID,
+              'name'          => $good['name'],
+              'description'   => filter_var ($good['description'], FILTER_SANITIZE_STRING),
+              'category_id'   => CAT,
+              'price'         => $good['price'],
+              'deleted'       => $good['deleted'],
+              'main_photo_id' => $photo[0]['id'],
+              'url'           => $good['url'],
           ));                                         
+      $gid = $gid['market_item_id'];
+      } catch (Exception $e) {
+        setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());    
+      }
 
-          $gid = $gid['market_item_id'];
     /*  это после  */
       if ($vkAlbumId = array_search($good['album'], $vkAlbums)) {
        
@@ -234,24 +261,31 @@ foreach ($yamlGoods as $good) {
           ));
         // var_dump($result);
         } catch (Exception $e) {
-          if ($e->getErrorCode() == 1404) {
-            echo  "уже там";
-          }
-          echo $e->getErrorCode();
+          setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
         }
       } else {
         // echo 'create album ' . $goog['album'] . '<br>';
       }
     usleep(250000);
+  } else {
+    setLog($good['name']);
   }
-    
-    // var_dump($gid);
-      // usleep(500000);
     
 }
 ////////////////////
 // MAIN_LOOP: END //
 ////////////////////
+
+if ($offest < count($yamlGoods)) {
+
+  setLog("[OFFSET] : " . $offset);
+
+  sleep(2);
+  exec("/opt/php/7.1/bin/php " . __FILE__ . " $offset > /dev/null &");
+} else {
+
+  setLog("END\n");
+}
 
 
 
