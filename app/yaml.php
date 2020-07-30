@@ -79,12 +79,23 @@ class yaml
       if (mb_strlen($name) > 99) {
         $name = mb_substr($name, 0, 99);
       }
+      if ((string)$attr->available == "true") {
+        $deleted = 0;
+      } else {
+        $deleted = 1;
+      }
+
+      $description = filter_var(trim((string)$offer->description), FILTER_SANITIZE_STRING);
+      $description = str_replace("&nbsp;", " ", $description);
+      $description = str_replace("&#8381;", "руб.", $description);
+      $description .= "\nподробная информация о товаре на нашем сайте: $url";
+
       $result[] = array(
         'album'         => trim($cat[(int)$offer->categoryId]),
         'name'          => $name,
-        'description'   => trim((string)$offer->description),
+        'description'   => $description,
         'price'         => trim((float)$offer->price),
-        'deleted'       => trim((bool)$arrt->available),
+        'deleted'       => $deleted,
         'url'           => $url,
         'picture_path'  => trim(str_replace("/styles/600x450/public", "", $picture))
       );

@@ -1,0 +1,1 @@
+/var/www/u7837304/data/www/zapchasti-dlya-kolyasok.rf/surweb/yaml2vk/app/logs/php-error.log
