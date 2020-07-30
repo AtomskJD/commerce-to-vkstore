@@ -2,5 +2,6 @@ app/img_cover/*
 app/img_good/*
 app/logs/*
 app/token.dat
+app/proc
 app/ttt.txt
 app/local_db.json

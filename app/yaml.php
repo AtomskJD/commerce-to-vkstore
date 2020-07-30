@@ -20,7 +20,7 @@ class yaml
       $build = array();
       // echo $count . "<br>";
       foreach ($this->xml->shop->categories->category as $category) {
-        $attr =$category->attributes();
+        $attr = $category->attributes();
         if ((int)$attr->parentId == 0) {
           $count --;
           $build[(int)$attr->id] = (string)$category;

@@ -1,5 +1,5 @@
 <?php 
-// exit();
+//exit();
 /* 
   this is cron scheduled tasks 
   Используется SDK
@@ -11,7 +11,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ini_set("log_errors", 1);
 ini_set("error_log", dirname(__FILE__) . "/logs/php-error.log");
-error_log( "Hello, errors! " . date("D/M H:i:s"));
+// error_log( "Hello, errors! " . date("D/M H:i:s"));
   /*
   
   convert 16.jpg -resize 400x400 -background black -gravity center -extent 400x400 -gravity center surweb_small.png -compose dissolve -composite 12.jpg
@@ -134,21 +134,22 @@ if (file_exists(PROC)) {
   $offset = $proc->offset;
 } else {
 
-  /* Локальная база для поиска товаров*/
+  /* Локальная база для поиска товаров local DB */
   $vkGoodsCount = 0; $vkGoodsOffset = 0; $vkGoodsItems = array();
   do {
-    $goods = $vk->market()->get($access_token, array(
-      'owner_id'  => _ID,
-      'count'     => 200,
-      'offset'    => $vkGoodsOffset
-    ));
+    try {
+      $goods = $vk->market()->get($access_token, array(
+        'owner_id'  => _ID,
+        'count'     => 200,
+        'offset'    => $vkGoodsOffset
+      ));
+    } catch (Exception $e) {
+      setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
+    }
 
     $vkGoodsItems = array_merge($vkGoodsItems, $goods['items']);
-
-
     $vkGoodsCount = (int)$goods['count'];
     $vkGoodsOffset += 200;
-
     usleep(100000);
   // $vkGoodsItems result
   } while ( $vkGoodsOffset <= $vkGoodsCount);
@@ -160,11 +161,15 @@ if (file_exists(PROC)) {
      * Проверка и альбомов
      * удаление вручную deleteAlbum()
      */
+    try {
+      $albums = $vk->market()->getAlbums($access_token, array(
+        'owner_id' => _ID,
+        'count'    => 100,
+      ));
+    } catch (Exception $e) {
+      setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
+    }
 
-    $albums = $vk->market()->getAlbums($access_token, array(
-      'owner_id' => _ID,
-      'count'    => 100,
-    ));
     $vkAlbums = array();
     foreach ($albums['items'] as $album) {
       $vkAlbums[$album['id']] = $album['title'];
@@ -226,9 +231,7 @@ if ($limit > count($yamlGoods)) {
 }
 
 
-
-
-
+$vkGoodsItems = json_decode(file_get_contents(VKSEARCHINDEX));
 
 
 ////////////////
@@ -241,22 +244,12 @@ set_time_limit(300);
 for ($offset; $offset < $limit; $offset++) { 
   $good = $yamlGoods[$offset];
   
-  // поиск существующих товаров (лаг минуты 3)
-  try {
-    $search = $vk->market()->search($access_token, array(
-      'owner_id'      => _ID,
-      'q'             => trim($good['name']),
-    ));
-  } catch (Exception $e) {
-    setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
-  }
-    usleep(250000);
-
-
-  $gid = is_exists($search, $good['name']);
+  // поиск существующих товаров в локальной базе
+  $searchKey = array_search($good['name'], array_column($vkGoodsItems, 'title'));
+  // $vkGoodsItems[$searchKey]
 
   /* Создание нового товара если он не существовал */
-  if ($gid == false) {
+  if ($searchKey == false) {
   setLog($good['name'] . " *NEW");
     /* upload main image */
     // var_dump($gid);
@@ -317,42 +310,6 @@ for ($offset; $offset < $limit; $offset++) {
         }
       }
 
-      /* Добавление изображения к альбому */
-      // if ($vkAlbumId = array_search($good['album'], $vkAlbumsNoPhoto)) {
-      //   setLog($good['album'] . " *NEW IMAGE");
-      //   try {
-      //     $albumPhoto = $vk->photos()->getMarketAlbumUploadServer($access_token, array(
-      //         'group_id'   => ID
-      //       ));
-
-      //     $uploads = uploadFile($albumPhoto['upload_url'], renderAlbumCover($good['picture_path']));
-      //     $uploads['group_id'] = ID;
-      //     $albumPhoto = $vk->photos()->saveMarketAlbumPhoto($access_token, $uploads);
-      //   } catch (Exception $e) {
-      //     setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
-      //   }
-
-      //   usleep(250000);
-
-      //   try {
-      //     $aid = $vk->market()->editAlbum($access_token, array( 
-      //           'owner_id'    => _ID,
-      //           'album_id'    => $vkAlbumId,
-      //           'title'       => $good['album'],
-      //           'photo_id'    => $albumPhoto[0]['id'],
-      //           'main_album'  => 0,
-      //       ));                                         
-      //   } catch (Exception $e) {
-      //     setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());    
-      //   }
-
-
-      //   unset($vkAlbumsNoPhoto[$vkAlbumId]);
-      // }
-
-
-
-
     usleep(250000);
   } 
   /* Обновление существующего товара */
@@ -360,21 +317,27 @@ for ($offset; $offset < $limit; $offset++) {
     // getById
     $vkItem   = array();
     $yamlItem = array();
-    $item = $vk->market()->getById($access_token, array(
-              'item_ids'   => _ID . "_" . $gid,
-              'extended'   => 0
-            ));
-    $vkItem['title'] = $item['items'][0]['title'];
-    $vkItem['price'] = $item['items'][0]['price']['amount'];
-    $vkItem['description'] = str_replace(array("\n", " ", "\t"), "",$item['items'][0]['description']);
 
-    $yamlItem['title'] = $good['name'];
-    $yamlItem['price'] = $good['price']*100;
+    $item = $vkGoodsItems[$searchKey];
+    $gid = $item->id;
+    $vkItem['title'] = $item->title;
+    $vkItem['price'] = $item->price->amount;
+    $vkItem['description'] = str_replace(array("\n", " ", "\t"), "",$item->description);
+    if ($item->availability == 0) {
+      $vkItem['deleted'] = 0;
+    } else {
+      $vkItem['deleted'] = 1;
+    }
+
+    $yamlItem['title']   = $good['name'];
+    $yamlItem['deleted'] = $good['deleted'];
+    $yamlItem['price']   = $good['price']*100;
     $yamlItem['description'] = str_replace(array("\n", " ", "\t"), "",$good['description']);
 
     // внести изменения если значения не совпадают
     if (($vkItem['title'] != $yamlItem['title']) ||
         ($vkItem['price'] != $yamlItem['price']) ||
+        ($vkItem['deleted'] != $yamlItem['deleted']) ||
         ($vkItem['description'] != $yamlItem['description'])) {
       setLog($good['name'] . " *UPDATE");
       usleep(250000);
@@ -385,6 +348,7 @@ for ($offset; $offset < $limit; $offset++) {
           'name'        => $good['name'],
           'price'       => (float)$good['price'],
           'description' => $good['description'],
+          'deleted'     => $good['deleted'],
         ));
       } catch (Exception $e) {
           setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());    

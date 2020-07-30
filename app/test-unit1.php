@@ -63,11 +63,11 @@ echo "<pre>";
   // file_put_contents('local_db.json', json_encode($vkGoodsItems));
   $vkGoodsItems = json_decode(file_get_contents('local_db.json'));
 
-  print_r($vkGoodsItems[0]);
+  // print_r($vkGoodsItems[0]);
 
-  var_dump($key = array_search('Втулка для колеса детской коляски на ось', array_column($vkGoodsItems, 'title')));
   print_r($key = array_search('Втулка для колеса детской коляски на ось 10,5мм [003017]', array_column($vkGoodsItems, 'title')));
 
-  print_r($vkGoodsItems[$key]);
+  print_r($item = $vkGoodsItems[$key]);
+  // print_r($vkItem['price'] = $item->price->amount);
 
 echo "</pre>";
