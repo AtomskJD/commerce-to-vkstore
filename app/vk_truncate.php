@@ -33,11 +33,15 @@ if (file_exists('token.dat')) {
 if (file_exists(PROC)) {
   $proc = json_decode(file_get_contents(PROC));
   if ($proc->pid != basename(__FILE__, ".php")) {
+    error_log('Попытка входа без ключа ' . basename(__FILE__));
     exit('Another PROC already run');
   }
   $offset = $proc->offset;
+  setLog("[OFFSET start] : " . (int)($offset+1));
 } else {
   // если ПРОЦесса нет первый заход проверка прав
+  setLog("[START] - truncate\n");
+
   if ((!isset($_GET['key'])) || ($_GET['key'] != 'Iddqd2011')) {
     error_log('Попытка входа без ключа ' . basename(__FILE__));
     exit('Не указан ключ');
@@ -50,7 +54,7 @@ if (file_exists(PROC)) {
         'owner_id'  => _ID,
         'count'     => 200,
         'offset'    => $vkGoodsOffset
-      ));
+      ));usleep(250000);
     } catch (Exception $e) {
       setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
     }
@@ -58,15 +62,14 @@ if (file_exists(PROC)) {
     $vkGoodsItems = array_merge($vkGoodsItems, $goods['items']);
     $vkGoodsCount = (int)$goods['count'];
     $vkGoodsOffset += 200;
-    usleep(100000);
   // $vkGoodsItems result
   } while ( $vkGoodsOffset <= $vkGoodsCount);
   file_put_contents(VKSEARCHINDEX, json_encode($vkGoodsItems));
-
+  usleep(250000);
   setPID(__FILE__, $offset = 0);
+  sleep(1);
   exec("/opt/php/7.1/bin/php " . __FILE__ . " > /dev/null &");
   
-  sleep(1);
   header('Location: index.php');
   exit();
 }
@@ -86,7 +89,7 @@ for ($offset; $offset < $limit; $offset++) {
     $result = $vk->market()->delete($access_token, array(
       'owner_id'  => _ID,
       'item_id'   => $goodItem->id,
-    ));
+    ));usleep(250000);
 
     if ($result) {
       setLog($goodItem->title . " !!DELETED");
@@ -95,15 +98,14 @@ for ($offset; $offset < $limit; $offset++) {
     setLog("[ERROR] (line):" . __LINE__ . "; (code):" . $e->getErrorCode() . "; (message):" . $e->getErrorMessage());
     
   }
-  usleep(100000);
 }
 
 if ($offset < count($vkGoodsItems)) {
 
-  setLog("[OFFSET] : " . $offset);
+  setLog("[OFFSET end] : " . $offset);
 
-  sleep(2);
   setPID(__FILE__, $offset, count($vkGoodsItems));
+  sleep(2);
   exec("/opt/php/7.1/bin/php " . __FILE__ . " > /dev/null &");
 } else {
 

@@ -62,8 +62,8 @@ class yaml
    * @return [type] [description]
    */
   public function getGoods() {
-    $search_str = 'https://xn-----6kcavojtahc9abe5aii1g0he.xn--p1ai/';
-    $replac_str = '/var/www/u7837304/data/www/zapchasti-dlya-kolyasok.rf/';
+    $search_str = DOMAIN_NEEDLE;
+    $replac_str = DOMAIN_REPLACE;
 
     $result = array();
     $cat = $this->buildCatalog();
@@ -71,9 +71,10 @@ class yaml
       $picture = explode("?", (string)$offer->picture);
       $picture    = str_replace($search_str, $replac_str, $picture[0]);
       $attr = $offer->attributes();
-      $url = trim((string)$offer->url);
+      // $url = trim((string)$offer->url);
+      $url = LEGACY_URL . (string)$attr->id;
       if (strlen($url) > 319) {
-        $url = 0;
+        $url = LEGACY_URL . (string)$attr->id;
       }
       $name = trim((string)$offer->name . " [".(string)$offer->vendorCode."]");
       if (mb_strlen($name) > 99) {
@@ -88,16 +89,19 @@ class yaml
       $description = filter_var(trim((string)$offer->description), FILTER_SANITIZE_STRING);
       $description = str_replace("&nbsp;", " ", $description);
       $description = str_replace("&#8381;", "руб.", $description);
-      $description .= "\nподробная информация о товаре на нашем сайте: $url";
+      $description = "Подробная информация о товаре на нашем сайте: $url \n" . $description;
+      $description = str_replace(" с доставкой по России", " в Екатеринбурге",$description);
+
 
       $result[] = array(
         'album'         => trim($cat[(int)$offer->categoryId]),
         'name'          => $name,
+        'nid'           => (string)$attr->id,
         'description'   => $description,
         'price'         => trim((float)$offer->price),
         'deleted'       => $deleted,
         'url'           => $url,
-        'picture_path'  => trim(str_replace("/styles/600x450/public", "", $picture))
+        'picture_path'  => trim(str_replace(PICTURE_NEEDLE, "", $picture))
       );
     }
 
